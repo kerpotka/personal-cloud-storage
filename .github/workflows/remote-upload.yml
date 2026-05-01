@@ -1,0 +1,440 @@
+name: Remote File Upload
+
+on:
+  workflow_dispatch:
+    inputs:
+      file_url:
+        description: 'URL of the file to download and upload'
+        required: true
+        type: string
+      file_name:
+        description: 'Name to save the file as (optional - auto-detected if empty)'
+        required: false
+        type: string
+        default: ''
+      virtual_path:
+        description: 'Virtual path in the storage (optional)'
+        required: false
+        type: string
+        default: '/'
+      release_tag:
+        description: 'Release tag to use'
+        required: true
+        type: string
+      compression_enabled:
+        description: 'Enable compression for the file'
+        required: false
+        type: boolean
+        default: true
+      video_quality:
+        description: 'Video quality for YouTube downloads (1080p, 720p, 480p, 360p, best)'
+        required: false
+        type: string
+        default: 'best'
+
+jobs:
+  remote-upload:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      
+      - name: Set up Node.js (for yt-dlp JavaScript runtime)
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      
+      - name: Install ffmpeg (for video/audio merging)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
+      
+      - name: Detect URL type and download file
+        run: |
+          echo "Processing URL: ${{ inputs.file_url }}"
+          
+          # Function to check if URL is a YouTube URL
+          is_youtube_url() {
+            local url="$1"
+            if echo "$url" | grep -qE '(youtube\.com|youtu\.be)'; then
+              return 0
+            fi
+            return 1
+          }
+          
+          # Check if this is a YouTube URL
+          if is_youtube_url "${{ inputs.file_url }}"; then
+            echo "YouTube URL detected. Installing yt-dlp..."
+            echo "IS_YOUTUBE=true" >> $GITHUB_ENV
+            
+            # Install yt-dlp
+            python -m pip install --upgrade pip
+            pip install yt-dlp
+            
+            echo "Downloading video from YouTube..."
+            
+            # Get Node.js path
+            NODE_PATH=$(which node)
+            echo "Node.js path: $NODE_PATH"
+            
+            # Determine filename
+            if [ -z "${{ inputs.file_name }}" ]; then
+              echo "No filename provided, will use video title and quality"
+              # Use yt-dlp output template with title and quality
+              OUTPUT_TEMPLATE="%(title)s_${{ inputs.video_quality }}.%(ext)s"
+            else
+              # Extract filename without extension for yt-dlp output template
+              FILENAME_NO_EXT="${{ inputs.file_name }}"
+              FILENAME_NO_EXT="${FILENAME_NO_EXT%.*}"
+              OUTPUT_TEMPLATE="$FILENAME_NO_EXT.%(ext)s"
+            fi
+            
+            echo "Output template: $OUTPUT_TEMPLATE"
+            
+            # Determine format based on quality setting
+            QUALITY="${{ inputs.video_quality }}"
+            echo "Requested video quality: $QUALITY"
+            
+            case "$QUALITY" in
+              "1080p")
+                FORMAT="bv*[height<=1080][ext=mp4]+ba[ext=m4a]/b[height<=1080][ext=mp4]/bv*[height<=1080]+ba/b"
+                ;;
+              "720p")
+                FORMAT="bv*[height<=720][ext=mp4]+ba[ext=m4a]/b[height<=720][ext=mp4]/bv*[height<=720]+ba/b"
+                ;;
+              "480p")
+                FORMAT="bv*[height<=480][ext=mp4]+ba[ext=m4a]/b[height<=480][ext=mp4]/bv*[height<=480]+ba/b"
+                ;;
+              "360p")
+                FORMAT="bv*[height<=360][ext=mp4]+ba[ext=m4a]/b[height<=360][ext=mp4]/bv*[height<=360]+ba/b"
+                ;;
+              *)
+                FORMAT="bv*[ext=mp4]+ba[ext=m4a]/b[ext=mp4]/bv*+ba/b"
+                ;;
+            esac
+            
+            echo "Using format: $FORMAT"
+            
+            # Prepare yt-dlp command with cookies if available
+            YTDLP_CMD="yt-dlp"
+            YTDLP_ARGS=(
+              "--format" "$FORMAT"
+              "--merge-output-format" "mp4"
+              "--js-runtimes" "node:$NODE_PATH"
+              "--remote-components" "ejs:github"
+              "--output" "$OUTPUT_TEMPLATE"
+            )
+            
+            # Check if YouTube cookies secret is available
+            if [ -n "${{ secrets.YOUTUBE_COOKIES }}" ]; then
+              echo "YouTube cookies found, using authentication..."
+              # Create cookies file from secret
+              echo "${{ secrets.YOUTUBE_COOKIES }}" > cookies.txt
+              YTDLP_ARGS+=("--cookies" "cookies.txt")
+            else
+              echo "No YouTube cookies found, attempting without authentication..."
+              echo "Note: Some videos may fail due to bot detection."
+              echo "To fix this, add YOUTUBE_COOKIES secret to your repository."
+            fi
+            
+            # Download with yt-dlp
+            $YTDLP_CMD "${YTDLP_ARGS[@]}" "${{ inputs.file_url }}"
+            
+            # Clean up cookies file if it was created
+            rm -f cookies.txt
+            
+            # Find the downloaded file
+            DOWNLOADED_FILE=$(ls -1 *.mp4 2>/dev/null | head -n 1)
+            
+            if [ -z "$DOWNLOADED_FILE" ]; then
+              echo "Error: Failed to download YouTube video"
+              exit 1
+            fi
+            
+            echo "Downloaded file: $DOWNLOADED_FILE"
+            
+            # If user provided a filename, rename to it
+            if [ -n "${{ inputs.file_name }}" ] && [ "$DOWNLOADED_FILE" != "${{ inputs.file_name }}" ]; then
+              echo "Renaming to user-specified filename: ${{ inputs.file_name }}"
+              mv "$DOWNLOADED_FILE" "${{ inputs.file_name }}"
+              DOWNLOADED_FILE="${{ inputs.file_name }}"
+            fi
+            
+            # Store the final filename
+            echo "FINAL_FILENAME=$DOWNLOADED_FILE" >> $GITHUB_ENV
+            echo "YouTube video downloaded successfully: $DOWNLOADED_FILE"
+          else
+            echo "Regular URL detected. Using curl..."
+            echo "IS_YOUTUBE=false" >> $GITHUB_ENV
+            
+            # Determine filename for regular URLs
+            if [ -z "${{ inputs.file_name }}" ]; then
+              echo "No filename provided, attempting to detect from URL or headers..."
+              
+              # Try to get filename from Content-Disposition header
+              HEADER_FILENAME=$(curl -sI -L "${{ inputs.file_url }}" | grep -i "content-disposition" | sed -n 's/.*filename="\?\([^"]*\)"\?.*/\1/p' | tr -d '\r')
+              
+              if [ -n "$HEADER_FILENAME" ]; then
+                DETECTED_FILENAME="$HEADER_FILENAME"
+                echo "Filename detected from headers: $DETECTED_FILENAME"
+              else
+                # Extract filename from URL
+                URL_FILENAME=$(basename "${{ inputs.file_url }}" | cut -d'?' -f1)
+                
+                if [ -n "$URL_FILENAME" ] && [ "$URL_FILENAME" != "/" ]; then
+                  DETECTED_FILENAME="$URL_FILENAME"
+                  echo "Filename extracted from URL: $DETECTED_FILENAME"
+                else
+                  # Generate random filename as fallback
+                  RANDOM_NAME="download_$(date +%s)_$RANDOM.bin"
+                  DETECTED_FILENAME="$RANDOM_NAME"
+                  echo "Using random filename: $DETECTED_FILENAME"
+                fi
+              fi
+            else
+              DETECTED_FILENAME="${{ inputs.file_name }}"
+              echo "Using user-provided filename: $DETECTED_FILENAME"
+            fi
+            
+            # Download the file using curl with follow redirects
+            curl -L -o "$DETECTED_FILENAME" "${{ inputs.file_url }}"
+            
+            # Store the final filename
+            echo "FINAL_FILENAME=$DETECTED_FILENAME" >> $GITHUB_ENV
+          fi
+      
+      - name: Verify download and set metadata
+        run: |
+          # FINAL_FILENAME is now available from previous step's GITHUB_ENV
+          FINAL_FILENAME="${{ env.FINAL_FILENAME }}"
+          
+          echo "Verifying downloaded file: $FINAL_FILENAME"
+          
+          # Check if download was successful
+          if [ ! -f "$FINAL_FILENAME" ]; then
+            echo "Error: Failed to download file: $FINAL_FILENAME"
+            echo "Files in current directory:"
+            ls -la
+            exit 1
+          fi
+          
+          echo "Download successful: $FINAL_FILENAME"
+          
+          # Get file size
+          FILE_SIZE=$(stat -f%z "$FINAL_FILENAME" 2>/dev/null || stat -c%s "$FINAL_FILENAME")
+          echo "Downloaded file size: $FILE_SIZE bytes"
+          echo "FILE_SIZE=$FILE_SIZE" >> $GITHUB_ENV
+          
+          # Store original filename
+          echo "ORIGINAL_FILE=$FINAL_FILENAME" >> $GITHUB_ENV
+      
+      - name: Compress file if enabled
+        if: inputs.compression_enabled == true
+        run: |
+          echo "Compressing file..."
+          tar -czf "${{ env.FINAL_FILENAME }}.tar.gz" "${{ env.FINAL_FILENAME }}"
+          
+          # Update to use compressed file
+          COMPRESSED_SIZE=$(stat -f%z "${{ env.FINAL_FILENAME }}.tar.gz" 2>/dev/null || stat -c%s "${{ env.FINAL_FILENAME }}.tar.gz")
+          echo "Compressed file size: $COMPRESSED_SIZE bytes"
+          echo "UPLOAD_FILE=${{ env.FINAL_FILENAME }}.tar.gz" >> $GITHUB_ENV
+          echo "FILE_SIZE=$COMPRESSED_SIZE" >> $GITHUB_ENV
+          echo "IS_COMPRESSED=true" >> $GITHUB_ENV
+      
+      - name: Set upload file if not compressed
+        if: inputs.compression_enabled != true
+        run: |
+          echo "UPLOAD_FILE=${{ env.FINAL_FILENAME }}" >> $GITHUB_ENV
+          echo "IS_COMPRESSED=false" >> $GITHUB_ENV
+      
+      - name: Check file size and split if needed
+        run: |
+          UPLOAD_FILE="${{ env.UPLOAD_FILE }}"
+          FILE_SIZE=${{ env.FILE_SIZE }}
+          CHUNK_SIZE=2000000000  # ~1.86 GB
+          
+          echo "File to upload: $UPLOAD_FILE"
+          echo "File size: $FILE_SIZE bytes"
+          echo "Chunk size limit: $CHUNK_SIZE bytes"
+          
+          if [ $FILE_SIZE -gt $CHUNK_SIZE ]; then
+            echo "File exceeds 2GB limit, splitting required"
+            echo "NEEDS_SPLITTING=true" >> $GITHUB_ENV
+            
+            # Calculate number of chunks
+            NUM_CHUNKS=$(( ($FILE_SIZE + $CHUNK_SIZE - 1) / $CHUNK_SIZE ))
+            echo "Will split into $NUM_CHUNKS chunks"
+            echo "NUM_CHUNKS=$NUM_CHUNKS" >> $GITHUB_ENV
+            
+            # Split the file
+            split -b $CHUNK_SIZE "$UPLOAD_FILE" "${UPLOAD_FILE}.part"
+            
+            # Rename parts to have proper numbering
+            PART_NUM=1
+            for part in ${UPLOAD_FILE}.part*; do
+              PADDED_NUM=$(printf "%03d" $PART_NUM)
+              mv "$part" "${UPLOAD_FILE}.part${PADDED_NUM}"
+              echo "Created chunk: ${UPLOAD_FILE}.part${PADDED_NUM}"
+              PART_NUM=$((PART_NUM + 1))
+            done
+          else
+            echo "File size is within limit, no splitting needed"
+            echo "NEEDS_SPLITTING=false" >> $GITHUB_ENV
+          fi
+
+      - name: Create GitHub Release and Upload File
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "Creating release: ${{ inputs.release_tag }}"
+          
+          # Create release first (without files)
+          gh release create "${{ inputs.release_tag }}" \
+            --title "Upload: ${{ env.FINAL_FILENAME }}" \
+            --notes "Remote upload from: ${{ inputs.file_url }}"
+          
+          echo "Release created successfully"
+          
+          if [ "${{ env.NEEDS_SPLITTING }}" = "true" ]; then
+            echo "Uploading multi-part file (${{ env.NUM_CHUNKS }} parts)..."
+            
+            # Upload each chunk
+            for i in $(seq 1 ${{ env.NUM_CHUNKS }}); do
+              PADDED_NUM=$(printf "%03d" $i)
+              CHUNK_FILE="${{ env.UPLOAD_FILE }}.part${PADDED_NUM}"
+              echo "Uploading part $i/${{ env.NUM_CHUNKS }}: $CHUNK_FILE"
+              gh release upload "${{ inputs.release_tag }}" "$CHUNK_FILE"
+            done
+            
+            echo "IS_MULTIPART=true" >> $GITHUB_ENV
+            echo "All chunks uploaded successfully"
+          else
+            echo "Uploading single file..."
+            gh release upload "${{ inputs.release_tag }}" "${{ env.UPLOAD_FILE }}"
+            echo "IS_MULTIPART=false" >> $GITHUB_ENV
+            echo "File uploaded successfully"
+          fi
+          
+          # Get the asset download URLs
+          if [ "${{ env.NEEDS_SPLITTING }}" = "true" ]; then
+            # For multi-part, we'll store URLs in metadata update step
+            echo "Multi-part upload complete"
+          else
+            ASSET_URL=$(gh release view "${{ inputs.release_tag }}" --json assets --jq '.assets[0].url')
+            echo "ASSET_URL=$ASSET_URL" >> $GITHUB_ENV
+          fi
+      
+      - name: Update metadata
+        run: |
+          echo "Updating metadata.json..."
+          
+          # Pull latest changes
+          git pull origin main || git pull origin master || true
+          
+          # Create metadata.json if it doesn't exist
+          if [ ! -f "metadata.json" ]; then
+            echo '{"version": "1.0", "files": {}, "last_updated": ""}' > metadata.json
+          fi
+          
+          # Get current timestamp
+          TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          
+          # Prepare file entry using Python
+          python3 << 'PYTHON_SCRIPT'
+          import json
+          import os
+          import subprocess
+          from datetime import datetime
+          
+          # Read existing metadata
+          with open('metadata.json', 'r') as f:
+              metadata = json.load(f)
+          
+          # Prepare file info
+          final_filename = os.environ.get('FINAL_FILENAME', '')
+          file_id = final_filename
+          is_multipart = os.environ.get('IS_MULTIPART', 'false') == 'true'
+          
+          file_info = {
+              "name": final_filename,
+              "size": int(os.environ.get('FILE_SIZE', 0)),
+              "type": "file",
+              "upload_date": os.environ.get('TIMESTAMP', datetime.utcnow().isoformat() + 'Z'),
+              "release_tag": "${{ inputs.release_tag }}",
+              "virtual_path": "${{ inputs.virtual_path }}",
+              "is_compressed": os.environ.get('IS_COMPRESSED', 'false') == 'true',
+              "original_name": final_filename,
+              "source": "youtube" if os.environ.get('IS_YOUTUBE', 'false') == 'true' else "remote",
+              "source_url": "${{ inputs.file_url }}",
+              "is_multipart": is_multipart
+          }
+          
+          if is_multipart:
+              # Get all assets from the release
+              result = subprocess.run(
+                  ['gh', 'release', 'view', '${{ inputs.release_tag }}', '--json', 'assets'],
+                  capture_output=True,
+                  text=True
+              )
+              release_data = json.loads(result.stdout)
+              assets = release_data.get('assets', [])
+              
+              # Sort assets by name to ensure correct order
+              assets.sort(key=lambda x: x['name'])
+              
+              # Build parts list
+              parts = []
+              for i, asset in enumerate(assets, 1):
+                  parts.append({
+                      'part_number': i,
+                      'asset_id': asset.get('id', 0),
+                      'download_url': asset.get('url', ''),
+                      'size': asset.get('size', 0)
+                  })
+              
+              file_info['total_parts'] = len(parts)
+              file_info['parts'] = parts
+              print(f"Multi-part file with {len(parts)} parts")
+          else:
+              # Single file - get download URL
+              file_info['download_url'] = os.environ.get('ASSET_URL', '')
+          
+          # Update metadata
+          metadata['files'][file_id] = file_info
+          metadata['last_updated'] = os.environ.get('TIMESTAMP', datetime.utcnow().isoformat() + 'Z')
+          
+          # Write updated metadata
+          with open('metadata.json', 'w') as f:
+              json.dump(metadata, f, indent=2)
+          
+          print(f"Metadata updated for file: {file_id}")
+          PYTHON_SCRIPT
+          
+          # Configure git
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          
+          # Commit and push changes
+          git add metadata.json
+          git commit -m "Add metadata for remote upload: ${{ env.FINAL_FILENAME }}"
+          git push
+          
+          echo "Metadata updated and pushed successfully"
+      
+      - name: Cleanup
+        if: always()
+        run: |
+          # Remove downloaded files
+          rm -f "${{ env.FINAL_FILENAME }}" "${{ env.FINAL_FILENAME }}.tar.gz" *.mp4 *.m4a || true
+
