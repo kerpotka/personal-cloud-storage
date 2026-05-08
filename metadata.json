@@ -17,46 +17,34 @@
     },
     "Music": {
       "name": "Music",
-      "size": 9294182400,
+      "size": 4231946240,
       "type": "directory",
       "compressed": false,
-      "upload_date": "2026-05-06T20:52:32.033206",
-      "release_tag": "upload-20260506-204435",
+      "upload_date": "2026-05-08T15:31:23.466257",
+      "release_tag": "upload-20260508-152714",
       "is_multipart": true,
-      "total_parts": 5,
+      "total_parts": 3,
       "parts": [
         {
           "part_number": 1,
-          "asset_id": 413825307,
-          "download_url": "https://github.com/kerpotka/personal-cloud-storage/releases/download/upload-20260506-204435/Music.tar.part001",
+          "asset_id": 415363455,
+          "download_url": "https://github.com/kerpotka/personal-cloud-storage/releases/download/upload-20260508-152714/Music.tar.part001",
           "size": 2000000000
         },
         {
           "part_number": 2,
-          "asset_id": 413826309,
-          "download_url": "https://github.com/kerpotka/personal-cloud-storage/releases/download/upload-20260506-204435/Music.tar.part002",
+          "asset_id": 415365118,
+          "download_url": "https://github.com/kerpotka/personal-cloud-storage/releases/download/upload-20260508-152714/Music.tar.part002",
           "size": 2000000000
         },
         {
           "part_number": 3,
-          "asset_id": 413827408,
-          "download_url": "https://github.com/kerpotka/personal-cloud-storage/releases/download/upload-20260506-204435/Music.tar.part003",
-          "size": 2000000000
-        },
-        {
-          "part_number": 4,
-          "asset_id": 413828536,
-          "download_url": "https://github.com/kerpotka/personal-cloud-storage/releases/download/upload-20260506-204435/Music.tar.part004",
-          "size": 2000000000
-        },
-        {
-          "part_number": 5,
-          "asset_id": 413829453,
-          "download_url": "https://github.com/kerpotka/personal-cloud-storage/releases/download/upload-20260506-204435/Music.tar.part005",
-          "size": 1294182400
+          "asset_id": 415366399,
+          "download_url": "https://github.com/kerpotka/personal-cloud-storage/releases/download/upload-20260508-152714/Music.tar.part003",
+          "size": 231946240
         }
       ]
     }
   },
-  "last_updated": "2026-05-06T20:52:32.033362"
+  "last_updated": "2026-05-08T15:31:23.466414"
 }
