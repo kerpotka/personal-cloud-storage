@@ -20,37 +20,37 @@
       "size": 6961971200,
       "type": "directory",
       "compressed": false,
-      "upload_date": "2026-05-11T21:21:21.022017",
-      "release_tag": "upload-20260511-211517",
+      "upload_date": "2026-05-11T21:34:39.489667",
+      "release_tag": "upload-20260511-212717",
       "is_multipart": true,
       "total_parts": 4,
       "parts": [
         {
           "part_number": 1,
-          "asset_id": 417778436,
-          "download_url": "https://github.com/kerpotka/personal-cloud-storage/releases/download/upload-20260511-211517/Music.tar.part001",
+          "asset_id": 417786128,
+          "download_url": "https://github.com/kerpotka/personal-cloud-storage/releases/download/upload-20260511-212717/Music.tar.part001",
           "size": 2000000000
         },
         {
           "part_number": 2,
-          "asset_id": 417779332,
-          "download_url": "https://github.com/kerpotka/personal-cloud-storage/releases/download/upload-20260511-211517/Music.tar.part002",
+          "asset_id": 417787447,
+          "download_url": "https://github.com/kerpotka/personal-cloud-storage/releases/download/upload-20260511-212717/Music.tar.part002",
           "size": 2000000000
         },
         {
           "part_number": 3,
-          "asset_id": 417780684,
-          "download_url": "https://github.com/kerpotka/personal-cloud-storage/releases/download/upload-20260511-211517/Music.tar.part003",
+          "asset_id": 417788564,
+          "download_url": "https://github.com/kerpotka/personal-cloud-storage/releases/download/upload-20260511-212717/Music.tar.part003",
           "size": 2000000000
         },
         {
           "part_number": 4,
-          "asset_id": 417781745,
-          "download_url": "https://github.com/kerpotka/personal-cloud-storage/releases/download/upload-20260511-211517/Music.tar.part004",
+          "asset_id": 417790110,
+          "download_url": "https://github.com/kerpotka/personal-cloud-storage/releases/download/upload-20260511-212717/Music.tar.part004",
           "size": 961971200
         }
       ]
     }
   },
-  "last_updated": "2026-05-11T21:21:21.022302"
+  "last_updated": "2026-05-11T21:34:39.489889"
 }
