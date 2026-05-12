@@ -17,40 +17,34 @@
     },
     "Music": {
       "name": "Music",
-      "size": 6961971200,
+      "size": 4812032000,
       "type": "directory",
       "compressed": false,
-      "upload_date": "2026-05-11T21:34:39.489667",
-      "release_tag": "upload-20260511-212717",
+      "upload_date": "2026-05-12T19:47:16.047201",
+      "release_tag": "upload-20260512-194308",
       "is_multipart": true,
-      "total_parts": 4,
+      "total_parts": 3,
       "parts": [
         {
           "part_number": 1,
-          "asset_id": 417786128,
-          "download_url": "https://github.com/kerpotka/personal-cloud-storage/releases/download/upload-20260511-212717/Music.tar.part001",
+          "asset_id": 418647192,
+          "download_url": "https://github.com/kerpotka/personal-cloud-storage/releases/download/upload-20260512-194308/Music.tar.part001",
           "size": 2000000000
         },
         {
           "part_number": 2,
-          "asset_id": 417787447,
-          "download_url": "https://github.com/kerpotka/personal-cloud-storage/releases/download/upload-20260511-212717/Music.tar.part002",
+          "asset_id": 418648167,
+          "download_url": "https://github.com/kerpotka/personal-cloud-storage/releases/download/upload-20260512-194308/Music.tar.part002",
           "size": 2000000000
         },
         {
           "part_number": 3,
-          "asset_id": 417788564,
-          "download_url": "https://github.com/kerpotka/personal-cloud-storage/releases/download/upload-20260511-212717/Music.tar.part003",
-          "size": 2000000000
-        },
-        {
-          "part_number": 4,
-          "asset_id": 417790110,
-          "download_url": "https://github.com/kerpotka/personal-cloud-storage/releases/download/upload-20260511-212717/Music.tar.part004",
-          "size": 961971200
+          "asset_id": 418649285,
+          "download_url": "https://github.com/kerpotka/personal-cloud-storage/releases/download/upload-20260512-194308/Music.tar.part003",
+          "size": 812032000
         }
       ]
     }
   },
-  "last_updated": "2026-05-11T21:34:39.489889"
+  "last_updated": "2026-05-12T19:47:16.047370"
 }
